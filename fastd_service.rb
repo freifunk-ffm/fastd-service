@@ -14,7 +14,7 @@ require 'sinatra/base'
 
 @@service = LibService.new
 set :method_override, true 
-register Sinatra::MultiRoute
+# register Sinatra::MultiRoute
 
 
 route :post,  ['/ath9k-crash/', '/fastd-upload/ath9-crash'] do
