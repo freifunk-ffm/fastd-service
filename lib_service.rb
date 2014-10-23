@@ -21,7 +21,7 @@ class LibService
       		{ "node_id" => nodeid, "dmesg" => dmesg, "tstmp" => params[:tstmp], 'submission_stmp' => now }
   end
   
-  def process_key_upload(params)
+  def process_key_upload(params,logger)
     fastd_dir = @@conf['fastd_peer_dir']
     reload_cmd = @@conf['fastd_reload_cmd']
     url = @@conf['register_url']
@@ -35,25 +35,29 @@ class LibService
     raise "No nodeid given" if nodeid.nil?
     raise "Invalid node-ID #{nodeid}" unless nodeid.match(/^[0-9a-f]{12}$/i)
     raise "Invalid key #{key}" unless key.match(/^[0-9a-f]+$/i)
-    
+
+    file_name = "#{fastd_dir}/#{nodeid}_#{key}"
+
     #Submit key
     resp = nil
     begin
       resp = Net::HTTP.post_form URI("#{url}/fastds"), { "mac" => nodeid, "key" => key, "fw_version" => fw_version }
     rescue Exception => e
+      logger.warn "Unable to query register - #{$!} -- #{e.backtrace.join("\n\t")}"
       # Register is inavailble, ignore
     end
     
+    return if File.exists?(file_name)
+    
     # In principle, it might should be possible for register to reject certain key (eg in times of attacks / faults)
     # if so, the respone will be HTTP-Net::HTTPServiceUnavailable
-    if resp.code == 423 #HTTP-Locked
+    if resp && resp.code == 423 #HTTP-Locked
       raise "Denied by policy"
     end
     # Ignore other errors - Register-Problems should not harm fastd-Services
-    
-    
+
     #We'll be save, then
-    File.open("#{fastd_dir}/#{nodeid}_#{key}", 'w') do |f| 
+    File.open(file_name, 'w') do |f| 
       f.write("key \"#{key}\";\n") 
     end
     system reload_cmd    
